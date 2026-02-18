@@ -21,13 +21,17 @@ function generatePianoSample(ctx, freq) {
     // Басы на настоящем пианино звучат дольше
     const decayTime = freq < 100 
         ? 8  // Увеличенное затухание для басов (A0-G2)
-        : Math.max(2, 5 - Math.log10(freq / 100));
+        : freq < 150  // Плавный переход 100-150 Hz
+            ? 8 - (freq - 100) * (8 - Math.max(2, 5 - Math.log10(150 / 100))) / 50
+            : Math.max(2, 5 - Math.log10(freq / 100));
     // Басы получают минимум 50% гармоник для выразительности
     const harmonicFactor = freq < 100
         ? 0.5  // Минимум 50% для самых низких нот
-        : Math.min(1, freq / 300); // Плавный переход от 300 Hz (вместо 500)
+        : freq < 150  // Плавный переход 100-150 Hz
+            ? 0.5 + (freq - 100) * ((150 / 300) - 0.5) / 50
+            : Math.min(1, freq / 300); // Плавный переход от 300 Hz (вместо 500)
     // Компенсация громкости для басовых нот
-    const bassBoost = freq < 130 ? 1 + (130 - freq) / 130 : 1;
+    const bassBoost = freq < 130 ? Math.max(1, 1 + (130 - freq) / 130) : 1;
     
     // Генерация волны
     for (let i = 0; i < length; i++) {
