@@ -22,7 +22,10 @@ function generatePianoSample(ctx, freq) {
     const BASS_BOOST_FREQ = 130;      // Граница усиления басов (C3)
     const BASS_DECAY_TIME = 8;        // Время затухания для басов
     const MAX_BASS_BOOST = 2.0;       // Максимальное усиление басов
-    const TRANSITION_END_DECAY = Math.max(2, 5 - Math.log10(TRANSITION_FREQ / 100));
+    // Предвычисленные константы для оптимизации
+    const TRANSITION_END_DECAY = 4.8239; // Math.max(2, 5 - Math.log10(150 / 100))
+    const TRANSITION_RANGE = 50;         // TRANSITION_FREQ - BASS_FREQ_THRESHOLD
+    const DECAY_RANGE = 3.1761;          // BASS_DECAY_TIME - TRANSITION_END_DECAY
     
     // Параметры
     const attackTime = 0.01; // Атака
@@ -30,7 +33,7 @@ function generatePianoSample(ctx, freq) {
     const decayTime = freq < BASS_FREQ_THRESHOLD 
         ? BASS_DECAY_TIME  // Увеличенное затухание для басов (A0-G2)
         : freq < TRANSITION_FREQ  // Плавный переход 100-150 Hz
-            ? BASS_DECAY_TIME - (freq - BASS_FREQ_THRESHOLD) * (BASS_DECAY_TIME - TRANSITION_END_DECAY) / (TRANSITION_FREQ - BASS_FREQ_THRESHOLD)
+            ? BASS_DECAY_TIME - (freq - BASS_FREQ_THRESHOLD) * DECAY_RANGE / TRANSITION_RANGE
             : Math.max(2, 5 - Math.log10(freq / 100));
     // Басы получают минимум 50% гармоник для выразительности
     const harmonicFactor = freq < TRANSITION_FREQ
