@@ -21,6 +21,7 @@ function generatePianoSample(ctx, freq) {
     const TRANSITION_FREQ = 150;      // Конец переходной зоны (D3)
     const BASS_BOOST_FREQ = 130;      // Граница усиления басов (C3)
     const BASS_DECAY_TIME = 8;        // Время затухания для басов
+    const MAX_BASS_BOOST = 2.0;       // Максимальное усиление басов
     const TRANSITION_END_DECAY = Math.max(2, 5 - Math.log10(TRANSITION_FREQ / 100));
     
     // Параметры
@@ -36,7 +37,9 @@ function generatePianoSample(ctx, freq) {
         ? 0.5  // Минимум 50% для низких нот (до D3)
         : Math.min(1, freq / 300); // Плавный переход от 300 Hz (вместо 500)
     // Компенсация громкости для басовых нот
-    const bassBoost = freq < BASS_BOOST_FREQ ? 1 + (BASS_BOOST_FREQ - freq) / BASS_BOOST_FREQ : 1;
+    const bassBoost = freq < BASS_BOOST_FREQ 
+        ? Math.min(MAX_BASS_BOOST, 1 + (BASS_BOOST_FREQ - freq) / BASS_BOOST_FREQ)
+        : 1;
     
     // Генерация волны
     for (let i = 0; i < length; i++) {
