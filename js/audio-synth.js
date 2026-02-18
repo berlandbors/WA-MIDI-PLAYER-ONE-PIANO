@@ -16,10 +16,33 @@ function generatePianoSample(ctx, freq) {
     const buffer = ctx.createBuffer(1, length, sampleRate); // Моно
     const data = buffer.getChannelData(0);
     
+    // Константы для параметров баса
+    const BASS_FREQ_THRESHOLD = 100;  // Граница глубоких басов (A0-G2)
+    const TRANSITION_FREQ = 150;      // Конец переходной зоны (D3)
+    const BASS_BOOST_FREQ = 130;      // Граница усиления басов (C3)
+    const BASS_DECAY_TIME = 8;        // Время затухания для басов
+    const MAX_BASS_BOOST = 2.0;       // Максимальное усиление басов
+    // Предвычисленные константы для оптимизации
+    const TRANSITION_END_DECAY = 4.8239; // Math.max(2, 5 - Math.log10(150 / 100))
+    const TRANSITION_RANGE = 50;         // TRANSITION_FREQ - BASS_FREQ_THRESHOLD
+    const DECAY_RANGE = 3.1761;          // BASS_DECAY_TIME - TRANSITION_END_DECAY
+    
     // Параметры
     const attackTime = 0.01; // Атака
-    const decayTime = Math.max(2, 5 - Math.log10(freq / 100)); // Затухание: дольше для басов
-    const harmonicFactor = Math.min(1, freq / 500); // Меньше гармоник для низких частот
+    // Басы на настоящем пианино звучат дольше
+    const decayTime = freq < BASS_FREQ_THRESHOLD 
+        ? BASS_DECAY_TIME  // Увеличенное затухание для басов (A0-G2)
+        : freq < TRANSITION_FREQ  // Плавный переход 100-150 Hz
+            ? BASS_DECAY_TIME - (freq - BASS_FREQ_THRESHOLD) * DECAY_RANGE / TRANSITION_RANGE
+            : Math.max(2, 5 - Math.log10(freq / 100));
+    // Басы получают минимум 50% гармоник для выразительности
+    const harmonicFactor = freq < TRANSITION_FREQ
+        ? 0.5  // Минимум 50% для низких нот (до D3)
+        : Math.min(1, freq / 300); // Плавный переход от 300 Hz (вместо 500)
+    // Компенсация громкости для басовых нот
+    const bassBoost = freq < BASS_BOOST_FREQ 
+        ? Math.min(MAX_BASS_BOOST, 1 + (BASS_BOOST_FREQ - freq) / BASS_BOOST_FREQ)
+        : 1;
     
     // Генерация волны
     for (let i = 0; i < length; i++) {
@@ -48,7 +71,7 @@ function generatePianoSample(ctx, freq) {
         const filterGain = 1 / (1 + (t * cutoff) ** 2); // Грубо имитируем фильтр
         sample *= filterGain;
         
-        data[i] = sample * envelope * 0.5; // Нормализация громкости
+        data[i] = sample * envelope * 0.5 * bassBoost; // Применяем усиление басов
     }
     
     return buffer;
