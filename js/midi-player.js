@@ -200,8 +200,14 @@ export class MIDIPlayer {
                 masterGain.connect(this.recordingDestination);
             }
             
-            oscillator.start(time);
-            oscillator.stop(time + duration + 0.1);
+            // Запускаем BufferSourceNode
+            if (oscillator && oscillator.start) {
+                oscillator.start(time);
+                const stopTime = soundResult.duration 
+                    ? Math.max(time + duration, time + soundResult.duration)
+                    : time + duration + 0.1;
+                oscillator.stop(stopTime);
+            }
             
             extras.forEach(osc => {
                 if (osc && osc.start) {
@@ -210,6 +216,7 @@ export class MIDIPlayer {
                 }
             });
             
+            // Передаём ноту в визуализатор
             this.visualizer.addNote(note, velocity);
             
             setTimeout(() => {
@@ -442,7 +449,6 @@ export class MIDIPlayer {
                     if (noteOn) {
                         const noteDuration = eventTime - noteOn.startTime;
                         
-                        // Создаём ноту в offline context
                         const frequency = 440 * Math.pow(2, (noteOn.note - 69) / 12);
                         
                         const soundResult = createAdvancedOscillator(
@@ -469,8 +475,14 @@ export class MIDIPlayer {
                         }
                         noteGain.connect(offlineGain);
                         
-                        oscillator.start(noteOn.startTime);
-                        oscillator.stop(noteOn.startTime + noteDuration + 0.1);
+                        // Запускаем BufferSourceNode
+                        if (oscillator && oscillator.start) {
+                            oscillator.start(noteOn.startTime);
+                            const stopTime = soundResult.duration 
+                                ? Math.max(noteOn.startTime + noteDuration, noteOn.startTime + soundResult.duration)
+                                : noteOn.startTime + noteDuration + 0.1;
+                            oscillator.stop(stopTime);
+                        }
                         
                         extras.forEach(osc => {
                             if (osc && osc.start) {

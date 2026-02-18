@@ -5,7 +5,7 @@ const sampleCache = new Map();
 
 // Экспортируемая функция для создания осциллятора (в будущем можно расширить)
 export function createAdvancedOscillator(audioContext, frequency, type, time) {
-    return createPiano(audioContext, frequency, audioContext.currentTime + time);
+    return createPiano(audioContext, frequency, time);
 }
 
 // Генерация семпла пианино с envelope и гармониками
@@ -71,13 +71,10 @@ function createPiano(ctx, freq, time) {
     postGain.gain.setValueAtTime(1.0, time);
     source.connect(postGain);
     
-    // Автоматический старт и стоп
-    source.start(time);
-    source.stop(time + buffer.duration); // Стоп через длительность семпла
-    
     return { 
-        source, // Основной источник (вместо oscillator)
+        oscillator: source, // ПЕРЕИМЕНОВАНО: source → oscillator для совместимости
         gainNode: postGain, 
-        extras: [] // Нет extras, так как всё в семпле
+        extras: [], // Нет extras, так как всё в семпле
+        duration: buffer.duration // ДОБАВЛЕНО: информация о длительности семпла
     };
 }
