@@ -1,5 +1,5 @@
 import { MIDIParser } from './midi-parser.js';
-import { createAdvancedOscillator } from './audio-synth.js';
+import { createAdvancedOscillator, releaseAll as toneSynthReleaseAll } from './tone-synth.js';
 
 // ===== MIDI PLAYER =====
 export class MIDIPlayer {
@@ -16,19 +16,13 @@ export class MIDIPlayer {
         this.waveType = 'piano';
         this.visualizer = visualizer;
         this.updateInterval = null;
-        this.mediaRecorder = null;
-        this.recordedChunks = [];
+        this.recorder = null;
         this.isRecording = false;
-        this.recordingDestination = null;
     }
 
     async init() {
-        if (!this.audioContext) {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (this.audioContext.state === 'suspended') {
-            await this.audioContext.resume();
-        }
+        await Tone.start();
+        this.audioContext = Tone.context;
     }
 
     loadMIDI(arrayBuffer) {
@@ -176,31 +170,33 @@ export class MIDIPlayer {
                 this.audioContext, 
                 frequency, 
                 this.waveType, 
-                0
+                0,
+                velocity
             );
             
             const oscillator = soundResult.oscillator;
             const customGain = soundResult.gainNode;
             const extras = soundResult.extras || [];
             
-            const masterGain = this.audioContext.createGain();
-            const volumeMultiplier = (velocity / 127) * (this.volume / 100);
-            
-            masterGain.gain.setValueAtTime(volumeMultiplier, time);
-            masterGain.gain.exponentialRampToValueAtTime(0.01, time + duration);
-            
-            if (customGain) {
-                customGain.connect(masterGain);
-            } else {
-                oscillator.connect(masterGain);
+            // Only set up manual Web Audio routing when gainNode or native oscillator (connect method)
+            // is available — this is the buffer-based path (used by audio-synth.js for WAV export fallback).
+            // For the Tone.js path, gainNode is null and oscillator has no connect method,
+            // so Tone.js routes audio to Tone.Destination internally.
+            if (customGain || (oscillator && oscillator.connect)) {
+                const masterGain = this.audioContext.createGain();
+                const volumeMultiplier = (velocity / 127) * (this.volume / 100);
+                
+                masterGain.gain.setValueAtTime(volumeMultiplier, time);
+                masterGain.gain.exponentialRampToValueAtTime(0.01, time + duration);
+                
+                if (customGain) {
+                    customGain.connect(masterGain);
+                } else {
+                    oscillator.connect(masterGain);
+                }
+                masterGain.connect(this.audioContext.destination);
             }
-            masterGain.connect(this.audioContext.destination);
             
-            if (this.mediaRecorder && this.isRecording && this.recordingDestination) {
-                masterGain.connect(this.recordingDestination);
-            }
-            
-            // Запускаем BufferSourceNode
             if (oscillator && oscillator.start) {
                 oscillator.start(time);
                 const stopTime = soundResult.duration 
@@ -233,6 +229,7 @@ export class MIDIPlayer {
         this.isPaused = true;
         this.clearScheduledEvents();
         this.stopTimeUpdate();
+        toneSynthReleaseAll();
     }
 
     stop() {
@@ -242,6 +239,7 @@ export class MIDIPlayer {
         this.clearScheduledEvents();
         this.stopTimeUpdate();
         this.visualizer.stop();
+        toneSynthReleaseAll();
     }
 
     clearScheduledEvents() {
@@ -274,6 +272,9 @@ export class MIDIPlayer {
 
     setVolume(volume) {
         this.volume = volume;
+        // Controls global Tone.js output volume for live playback.
+        // WAV export uses offlineGain.gain.value = this.volume / 100 independently.
+        Tone.Destination.volume.value = Tone.gainToDb(volume / 100);
     }
 
     setTempo(tempo) {
@@ -285,6 +286,7 @@ export class MIDIPlayer {
         }
 
         this.tempo = tempo;
+        Tone.Transport.bpm.value = (this.midiData ? (this.midiData.bpm || 120) : 120) * (tempo / 100);
 
         if (wasPlaying) {
             this.play(currentTime);
@@ -306,39 +308,24 @@ export class MIDIPlayer {
     }
 
     async startRecording() {
-        await this.init();
-        
-        this.recordingDestination = this.audioContext.createMediaStreamDestination();
-        this.mediaRecorder = new MediaRecorder(this.recordingDestination.stream);
-        this.recordedChunks = [];
-
-        this.mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                this.recordedChunks.push(event.data);
-            }
-        };
-
-        this.mediaRecorder.start();
+        await Tone.start();
+        if (!this.audioContext) {
+            this.audioContext = Tone.context;
+        }
+        this.recorder = new Tone.Recorder();
+        Tone.Destination.connect(this.recorder);
+        await this.recorder.start();
         this.isRecording = true;
     }
 
-    stopRecording() {
-        return new Promise((resolve) => {
-            if (!this.mediaRecorder) {
-                resolve(null);
-                return;
-            }
+    async stopRecording() {
+        if (!this.recorder || !this.isRecording) return null;
 
-            this.mediaRecorder.onstop = () => {
-                const blob = new Blob(this.recordedChunks, { type: 'audio/webm' });
-                this.isRecording = false;
-                this.mediaRecorder = null;
-                this.recordingDestination = null;
-                resolve(blob);
-            };
+        const recording = await this.recorder.stop();
+        this.isRecording = false;
+        this.recorder = null;
 
-            this.mediaRecorder.stop();
-        });
+        return recording; // Blob с аудио
     }
 
     exportToJSON() {
