@@ -1,6 +1,7 @@
 import { Visualizer } from './visualizer.js';
 import { MIDIPlayer } from './midi-player.js';
 import { MIDIWriter } from './midi-writer.js';
+import { setPedalDown, pianoReverb, pianoEQ } from './tone-synth.js';
 
 // ===== UI ЛОГИКА =====
 let player;
@@ -24,6 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const instrumentSelector = document.getElementById('instrumentSelector');
     const volumeControl = document.getElementById('volumeControl');
     const tempoControl = document.getElementById('tempoControl');
+    const reverbControl = document.getElementById('reverbControl');
+    const brightnessControl = document.getElementById('brightnessControl');
     const progressContainer = document.getElementById('progressContainer');
     const progressBar = document.getElementById('progressBar');
     const progressFill = document.getElementById('progressFill');
@@ -109,6 +112,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 instrumentSelector.classList.add('active');
                 volumeControl.classList.add('active');
                 tempoControl.classList.add('active');
+                reverbControl.classList.add('active');
+                brightnessControl.classList.add('active');
                 progressContainer.classList.add('active');
                 
                 totalTimeEl.textContent = formatTime(player.duration);
@@ -168,6 +173,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const value = e.target.value;
         tempoValue.textContent = value + '%';
         player.setTempo(parseInt(value));
+    });
+
+    // Reverb control
+    const reverbSlider = document.getElementById('reverbSlider');
+    const reverbValueEl = document.getElementById('reverbValue');
+    reverbSlider.addEventListener('input', (e) => {
+        const value = e.target.value;
+        reverbValueEl.textContent = value + '%';
+        if (pianoReverb) {
+            pianoReverb.wet.value = value / 100;
+        }
+    });
+
+    // Brightness (EQ high-frequency) control
+    const brightnessSlider = document.getElementById('brightnessSlider');
+    const brightnessValueEl = document.getElementById('brightnessValue');
+    brightnessSlider.addEventListener('input', (e) => {
+        const value = e.target.value;
+        brightnessValueEl.textContent = value + '%';
+        const dbValue = (value - 50) / 5; // map 0-100 to -10..+10 dB
+        if (pianoEQ) {
+            pianoEQ.high.value = dbValue;
+        }
     });
 
     setInterval(() => {
@@ -321,6 +349,8 @@ document.addEventListener('DOMContentLoaded', () => {
             instrumentSelector.classList.add('active');
             volumeControl.classList.add('active');
             tempoControl.classList.add('active');
+            reverbControl.classList.add('active');
+            brightnessControl.classList.add('active');
             progressContainer.classList.add('active');
             
             totalTimeEl.textContent = formatTime(player.duration);
