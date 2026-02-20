@@ -52,7 +52,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('click', async () => {
+        await Tone.start();
+        fileInput.click();
+    });
 
     uploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
